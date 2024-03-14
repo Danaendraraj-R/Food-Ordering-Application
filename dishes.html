@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dishes</title>
+    <style>
+        .dish-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease-in-out;
+            cursor: pointer;
+        }
+
+        .dish-card:hover {
+            transform: scale(1.01);
+        }
+
+        .dish-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .dish-details {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .dish-cost,
+        .dish-preptime,
+        .dish-category {
+            flex: 1;
+            text-align: left;
+            font-size: 14px;
+            color: #555;
+        }
+
+
+        .add-to-cart-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .add-to-cart-btn {
+            background-color:#EF4F5F;
+            color: white;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .quantity-input {
+            width: 50px;
+            text-align: center;
+            margin-right: 15px;
+        }
+        .remove-btn{
+            background-color:#EF4F5F;
+            color: white;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;   
+        }
+        ul{
+            list-style-type: none;
+        }
+        li{
+            margin-bottom:2px;
+        }
+        #cart {
+            bottom: 0;
+            left: 0;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: -20px;
+            max-height: 140px;
+            overflow-y: scroll;
+        }
+
+        #orderNowBtn {
+            background-color: #4caf50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 40px;
+        }
+        .dishesContainer{
+            max-height: 400px;
+            width:100%;
+            overflow-y: scroll;
+            transition: margin-bottom 0.3s ease-in-out;
+            
+        }
+        .Shopping-cart{
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding:15px;
+            background-color: #f9f9f9;
+            box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+            align-items: center;  
+            height:200px; 
+
+        }
+        
+    </style>
+</head>
+
+<body>
+
+    <h2>Dishes</h2>
+
+    <div class="dishesContainer">
+    </div>
+    <div class="Shopping-cart">
+    <h2>Shopping cart</h2>
+    <div id="cart">          
+        <ul id="cartItems"></ul>
+        <p>Total Price: <span id="totalPrice">0</span></p>
+        <button id="orderNowBtn" onclick="placeOrder()">Order Now</button>
+    </div>
+</div>
+
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script>
+        function initializeShoppingCart() {
+            var existingCart = localStorage.getItem('shoppingCart');
+            return JSON.parse(existingCart) || [];
+        }
+        const urlParams = new URLSearchParams(window.location.search);
+        const restaurantId = urlParams.get('restaurantId');
+
+        if (restaurantId) {
+            fetchAndDisplayDishes(restaurantId);
+        } else {
+            console.error('Restaurant ID not provided in the query parameter.');
+        }
+
+        var shoppingCart = initializeShoppingCart();
+        updateCart();
+
+        function fetchAndDisplayDishes(restaurantId) {
+            $.ajax({
+                url: `Dishes`,
+                type: "GET",
+                dataType: "json",
+                success: function (dishesData) {
+                    var filterDishes = dishesData.filter(function (dishesData) {
+                        return dishesData.restId == restaurantId;
+                    });
+                    displayDishes(filterDishes);
+                },
+                error: function (error) {
+                    console.log("Error fetching dishes data:", error);
+                }
+            });
+        }
+
+        function displayDishes(dishesData) {
+            var dishesContainer = $(".dishesContainer");
+            dishesContainer.empty();
+
+            if (dishesData.length === 0) {
+                dishesContainer.append("<p>No dishes available for this restaurant</p>");
+            } else {
+                var dishesList = dishesData.map(dish => getDishCard(dish));
+                dishesContainer.append(dishesList);
+            }
+        }
+
+
+        function addToCart(dishId, dishName, quantity, price) {
+           var existingItemIndex = shoppingCart.findIndex(item => item.dishid === dishId);
+
+            if (existingItemIndex !== -1) {
+        // Dish already in cart, update quantity and price
+             shoppingCart[existingItemIndex].quantity += quantity;
+             shoppingCart[existingItemIndex].price += price;
+         } else {
+        // Dish not in cart, add it
+             shoppingCart.push({
+                restid: restaurantId,
+                dishid: dishId,
+                dishName: dishName,
+                quantity: quantity,
+                price: price
+           });
+    }
+
+    updateCart();
+    updateLocalStorage();
+}
+
+
+        function removeFromCart(dishId) {
+    var existingItem = shoppingCart.find(item => item.dishid === dishId);
+
+    if (existingItem) {
+        if (existingItem.quantity > 1) {
+            existingItem.quantity--;
+            existingItem.price -= existingItem.price / (existingItem.quantity + 1);
+        } else {
+            shoppingCart = shoppingCart.filter(item => item.dishid !== dishId);
+        }
+    }
+
+    updateCart();
+    updateLocalStorage();
+}
+
+        function updateCart() {
+            var cartItems = $("#cartItems");
+            var totalPrice = $("#totalPrice");
+            cartItems.empty();
+
+            var total = 0;
+
+            shoppingCart.forEach(item => {
+                var listItem = `
+                    <li>
+                        Restaurant ID: ${item.restid},
+                        Dish Name: ${item.dishName}, 
+                        Quantity: ${item.quantity}, 
+                        Subtotal: ${item.price}
+                        <button class='remove-btn' onclick='removeFromCart(${item.dishid})'>Reduce/Remove</button>
+                    </li>`;
+                cartItems.append(listItem);
+                total += item.price;
+            });
+
+            totalPrice.text(total);
+        }
+
+        function updateLocalStorage() {
+            localStorage.setItem('shoppingCart', JSON.stringify(shoppingCart));
+        }
+
+        function getDishCard(dish) {
+            return `
+                <div class='dish-card'>
+                    <div class='dish-name'>${dish.dishName}</div>
+                    <div class='dish-details'>
+                        <div class='dish-cost'>Cost: ${dish.cost}</div>
+                        <div class='dish-preptime'>Preparation Time: ${dish.prepTime} mins</div>
+                        <div class='dish-category'>Category: ${dish.category}</div>
+                    <div class='add-to-cart-section'>
+                        <input type='number' class='quantity-input' value='1' min='1' max='10'>
+                        <button class='add-to-cart-btn' data-dish-id='${dish.dishId}'>Add to Cart</button                     
+                    </div>
+                    </div>
+
+                </div>
+            `;
+        }
+
+        function placeOrder()
+        {
+            window.location.href="OrderSummary.jsp";
+        }
+
+
+        $(document).on('click', '.add-to-cart-btn', function () {
+            var dishName = $(this).closest('.dish-card').find('.dish-name').text();
+            console.log(dishName);
+            var dishId = $(this).data('dish-id');
+            var quantity = parseInt($(this).siblings('.quantity-input').val());
+            var costPerUnit = parseFloat($(this).closest('.dish-card').find('.dish-cost').text().replace("Cost: ", ""));
+            var subtotal = quantity * costPerUnit;
+
+            addToCart(dishId,dishName, quantity, subtotal);
+            console.log(`Added ${quantity} units of dish ${dishId} to the cart. Subtotal: ${subtotal}`);
+        });
+    </script>
+</body>
+
+</html>
